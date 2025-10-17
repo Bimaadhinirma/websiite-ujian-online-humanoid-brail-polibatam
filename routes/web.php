@@ -72,9 +72,15 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
         'destroy' => 'admin.questions.destroy',
     ]);
 
+    // Questions bulk export/import for a period
+    Route::get('/questions/export/{period}', [QuestionController::class, 'exportForPeriod'])->name('admin.questions.export');
+    Route::post('/questions/import/{period}', [QuestionController::class, 'importForPeriod'])->name('admin.questions.import');
+    Route::get('/questions/template/{period}', [QuestionController::class, 'exportTemplate'])->name('admin.questions.template');
+
     // Results Management
     Route::get('/results', [AdminResultController::class, 'index'])->name('admin.results.index');
     Route::get('/results/period/{period}', [AdminResultController::class, 'show'])->name('admin.results.show');
+    Route::get('/results/export/{period}', [AdminResultController::class, 'exportExcel'])->name('admin.results.export');
     Route::get('/results/detail/{userAnswer}', [AdminResultController::class, 'detail'])->name('admin.results.detail');
     Route::post('/results/toggle-show-result/{period}', [AdminResultController::class, 'toggleShowResult'])->name('admin.results.toggle-show-result');
     Route::post('/results/toggle-show-grade/{period}', [AdminResultController::class, 'toggleShowGrade'])->name('admin.results.toggle-show-grade');

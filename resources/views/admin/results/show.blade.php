@@ -48,6 +48,12 @@
                     </span>
                 </div>
                 <div class="space-y-2">
+                    <div>
+                        <a href="{{ route('admin.results.export', $period->id) }}" 
+                           class="block w-full px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-center">
+                            Export to Excel
+                        </a>
+                    </div>
                     <form method="POST" action="{{ route('admin.results.toggle-show-grade', $period->id) }}">
                         @csrf
                         <button type="submit" class="block w-full px-4 py-2 rounded {{ $period->show_grade ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-gray-500' }} text-white">

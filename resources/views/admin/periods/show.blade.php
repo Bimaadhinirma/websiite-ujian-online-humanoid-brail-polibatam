@@ -10,10 +10,31 @@
     @include('admin.layouts.navbar')
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="mb-6">
+        <div class="mb-6 flex justify-between items-center">
             <a href="{{ route('admin.periods.index') }}" class="text-blue-600 hover:text-blue-800">
                 ← Kembali ke Daftar Periods
             </a>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('admin.results.show', $period->id) }}" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                    Lihat Hasil
+                </a>
+                <a href="{{ route('admin.questions.export', $period->id) }}" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Export Soal (Excel)
+                </a>
+                <a href="{{ route('admin.questions.template', $period->id) }}" class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">
+                    Download Import Template
+                </a>
+                <form action="{{ route('admin.questions.import', $period->id) }}" method="POST" enctype="multipart/form-data" class="inline-flex items-center">
+                    @csrf
+                    <label class="bg-yellow-500 text-white px-3 py-2 rounded hover:bg-yellow-600 cursor-pointer">
+                        Import Soal
+                        <input type="file" name="file" accept=".xlsx,.xls" class="hidden" onchange="this.form.submit()">
+                    </label>
+                </form>
+                <a href="{{ route('admin.periods.edit', $period->id) }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    Edit Period
+                </a>
+            </div>
         </div>
 
         @if(session('success'))
@@ -60,14 +81,6 @@
                             Password: {{ $period->exam_password ? $period->exam_password : 'Tidak ada' }}
                         </span>
                     </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <a href="{{ route('admin.results.show', $period->id) }}" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
-                        Lihat Hasil
-                    </a>
-                    <a href="{{ route('admin.periods.edit', $period->id) }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                        Edit Period
-                    </a>
                 </div>
             </div>
         </div>
