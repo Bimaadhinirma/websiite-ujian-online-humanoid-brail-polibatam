@@ -38,6 +38,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
         'update' => 'admin.users.update',
         'destroy' => 'admin.users.destroy',
     ])->except(['show']);
+
+    // Users bulk export/import
+    Route::get('/users/export', [\App\Http\Controllers\Admin\UserController::class, 'export'])->name('admin.users.export');
+    Route::post('/users/import', [\App\Http\Controllers\Admin\UserController::class, 'import'])->name('admin.users.import');
+    Route::get('/users/template', [\App\Http\Controllers\Admin\UserController::class, 'template'])->name('admin.users.template');
     
     // Period Management
     Route::resource('periods', PeriodController::class)->names([

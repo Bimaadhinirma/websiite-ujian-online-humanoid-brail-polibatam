@@ -12,9 +12,24 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <h2 class="text-xl sm:text-2xl font-bold text-gray-800">Kelola Participants</h2>
-            <a href="{{ route('admin.users.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full sm:w-auto text-center">
-                + Tambah Participant
-            </a>
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <a href="{{ route('admin.users.template') }}" class="bg-gray-200 text-gray-800 px-3 py-2 rounded hover:bg-gray-300 text-center text-sm">Download Template</a>
+                <a href="{{ route('admin.users.export') }}" class="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 text-center text-sm">Export CSV</a>
+
+                <form id="importForm" action="{{ route('admin.users.import') }}" method="POST" enctype="multipart/form-data" class="flex items-center gap-2">
+                    @csrf
+                    <label class="block">
+                        <input type="file" name="csv_file" accept=".csv" class="hidden" id="csv_file_input">
+                        <a href="#" id="chooseCsv" onclick="document.getElementById('csv_file_input').click(); return false;" class="bg-yellow-500 text-white px-3 py-2 rounded hover:bg-yellow-600 text-center text-sm">Pilih CSV</a>
+                    </label>
+                    <!-- Import will auto-submit when a file is selected -->
+                    <span id="importStatus" class="text-sm text-gray-600"></span>
+                </form>
+
+                <a href="{{ route('admin.users.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full sm:w-auto text-center">
+                    + Tambah Participant
+                </a>
+            </div>
         </div>
 
         @if(session('success'))
@@ -60,4 +75,32 @@
         </div>
     </div>
 </body>
+<script>
+    (function(){
+        const input = document.getElementById('csv_file_input');
+        const form = document.getElementById('importForm');
+        const status = document.getElementById('importStatus');
+        const choose = document.getElementById('chooseCsv');
+
+        if (!input || !form) return;
+
+        input.addEventListener('change', function(){
+            if (!this.files || this.files.length === 0) return;
+            // optional: confirm before uploading
+            const fileName = this.files[0].name || '';
+            const proceed = confirm('Upload file: ' + fileName + '\nLanjutkan import sekarang?');
+            if (!proceed) {
+                // reset input
+                this.value = '';
+                return;
+            }
+
+            // show status and disable choose button to prevent re-clicks
+            if (status) status.textContent = 'Uploading...';
+            if (choose) choose.classList.add('opacity-50', 'pointer-events-none');
+
+            form.submit();
+        });
+    })();
+</script>
 </html>
