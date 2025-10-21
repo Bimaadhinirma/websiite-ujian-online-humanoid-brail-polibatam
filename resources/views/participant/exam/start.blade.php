@@ -58,7 +58,7 @@
                                     </div>
                                 @endif
                                 <p class="font-semibold text-gray-800 mb-3 text-sm sm:text-base">
-                                    {{ $index + 1 }}. {{ $question->question }}
+                                    {{ $index + 1 }}. {!! $question->question !!}
                                     <span class="text-xs sm:text-sm text-blue-600">(Bobot: {{ $question->grade }})</span>
                                 </p>
 
@@ -72,6 +72,9 @@
                                                     class="form-radio text-blue-600"
                                                     required>
                                                 <span class="text-gray-700">{{ $option->option }}</span>
+                                                @if($option->image)
+                                                    <img src="{{ asset('storage/'.$option->image) }}" alt="Opsi Gambar" style="width:400px;height:400px;object-fit:contain;background:#f8fafc;" class="border rounded ml-2" />
+                                                @endif
                                             </label>
                                         @endforeach
                                     </div>
@@ -108,17 +111,14 @@
     <script>
     // Exam duration in minutes provided by server (null means unlimited)
     const durationMinutes = {{ json_encode($period->duration_minutes) }};
-        // Use a unique key per userAnswer to persist remaining time across reloads
-        const storageKey = 'exam_remaining_seconds_{{ $userAnswer->id }}';
-
-        console.log('Exam durationMinutes from server:', durationMinutes);
-
-        // Calculate remaining seconds. If not stored or invalid (including 0), initialize
-        // from the server-provided durationMinutes when available.
-        let remaining = parseInt(localStorage.getItem(storageKey));
-        // also store the configured duration so we can detect admin changes
-        const storedDurationKey = 'exam_duration_minutes_{{ $userAnswer->id }}';
-        const storedDuration = parseInt(localStorage.getItem(storedDurationKey));
+    // Use a unique key per user, period, and userAnswer to persist remaining time across reloads
+    const userId = {{ Auth::id() }};
+    const periodId = {{ $period->id }};
+    const storageKey = `exam_remaining_seconds_${userId}_${periodId}_{{ $userAnswer->id }}`;
+    const storedDurationKey = `exam_duration_minutes_${userId}_${periodId}_{{ $userAnswer->id }}`;
+    console.log('Exam durationMinutes from server:', durationMinutes);
+    let remaining = parseInt(localStorage.getItem(storageKey));
+    const storedDuration = parseInt(localStorage.getItem(storedDurationKey));
 
         // If admin changed the duration (or no stored duration), update it
         if (isNaN(storedDuration) || storedDuration !== Number(durationMinutes)) {
@@ -208,36 +208,42 @@
 
     // Auto save to localStorage (optional)
     const inputs = form.querySelectorAll('input[type="radio"], input[type="text"]');
-        
-        // Load saved answers
-        inputs.forEach(input => {
-            const savedValue = localStorage.getItem(`answer_${input.name}`);
-            if (savedValue) {
-                if (input.type === 'radio' && input.value === savedValue) {
-                    input.checked = true;
-                } else if (input.type === 'text') {
-                    input.value = savedValue;
-                }
+    // Helper to get unique key for each answer
+    function getAnswerKey(input) {
+        // Extract question id from input name: answers[question_id]
+        const match = input.name.match(/answers\[(\d+)\]/);
+        const questionId = match ? match[1] : 'unknown';
+        return `answer_${userId}_${periodId}_${questionId}`;
+    }
+
+    // Load saved answers
+    inputs.forEach(input => {
+        const key = getAnswerKey(input);
+        const savedValue = localStorage.getItem(key);
+        if (savedValue) {
+            if (input.type === 'radio' && input.value === savedValue) {
+                input.checked = true;
+            } else if (input.type === 'text') {
+                input.value = savedValue;
             }
-        });
+        }
+    });
 
-        // Save on change
+    // Save on change
+    inputs.forEach(input => {
+        input.addEventListener('change', function() {
+            const key = getAnswerKey(this);
+            localStorage.setItem(key, this.value);
+        });
+    });
+
+    // Clear localStorage on submit
+    form.addEventListener('submit', function() {
         inputs.forEach(input => {
-            input.addEventListener('change', function() {
-                if (this.type === 'radio') {
-                    localStorage.setItem(`answer_${this.name}`, this.value);
-                } else {
-                    localStorage.setItem(`answer_${this.name}`, this.value);
-                }
-            });
+            const key = getAnswerKey(input);
+            localStorage.removeItem(key);
         });
-
-        // Clear localStorage on submit
-        form.addEventListener('submit', function() {
-            inputs.forEach(input => {
-                localStorage.removeItem(`answer_${input.name}`);
-            });
-        });
+    });
     </script>
 </body>
 </html>

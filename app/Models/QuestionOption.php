@@ -13,6 +13,7 @@ class QuestionOption extends Model
         'question_id',
         'option',
         'order',
+        'image', // path gambar opsi
     ];
 
     /**

@@ -74,20 +74,22 @@ class QuestionController extends Controller
 
             if ($request->type === 'options') {
                 $correctOptionId = null;
+                $optionImages = $request->file('option_images', []);
                 foreach ($request->options as $index => $optionText) {
+                    $imagePath = null;
+                    if (isset($optionImages[$index]) && $optionImages[$index]) {
+                        $imagePath = $optionImages[$index]->store('option_images', 'public');
+                    }
                     $option = QuestionOption::create([
                         'question_id' => $question->id,
                         'option' => $optionText,
                         'order' => $index + 1,
+                        'image' => $imagePath,
                     ]);
-
-                    // Check if this is the correct answer
                     if ($request->correct_answer == $index) {
                         $correctOptionId = $option->id;
                     }
                 }
-
-                // Create answer key with the correct option ID
                 if ($correctOptionId) {
                     AnswerKey::create([
                         'question_id' => $question->id,
@@ -172,25 +174,33 @@ class QuestionController extends Controller
                 $question->update($updateData);
 
             // Delete old options and answer key
+            $oldOptions = QuestionOption::where('question_id', $question->id)->get();
+            foreach ($oldOptions as $opt) {
+                if ($opt->image) {
+                    Storage::disk('public')->delete($opt->image);
+                }
+            }
             QuestionOption::where('question_id', $question->id)->delete();
             AnswerKey::where('question_id', $question->id)->delete();
 
             if ($request->type === 'options') {
                 $correctOptionId = null;
+                $optionImages = $request->file('option_images', []);
                 foreach ($request->options as $index => $optionText) {
+                    $imagePath = null;
+                    if (isset($optionImages[$index]) && $optionImages[$index]) {
+                        $imagePath = $optionImages[$index]->store('option_images', 'public');
+                    }
                     $option = QuestionOption::create([
                         'question_id' => $question->id,
                         'option' => $optionText,
                         'order' => $index + 1,
+                        'image' => $imagePath,
                     ]);
-
-                    // Check if this is the correct answer
                     if ($request->correct_answer == $index) {
                         $correctOptionId = $option->id;
                     }
                 }
-
-                // Create answer key with the correct option ID
                 if ($correctOptionId) {
                     AnswerKey::create([
                         'question_id' => $question->id,

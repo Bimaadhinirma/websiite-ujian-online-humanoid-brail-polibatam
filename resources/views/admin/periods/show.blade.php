@@ -140,7 +140,7 @@
                                                         </div>
                                                     @endif
                                                     <div class="flex items-center space-x-2 mb-2">
-                                                        <p class="font-medium text-gray-800">{{ $question->order }}. {{ $question->question }}</p>
+                                                        <p class="font-medium text-gray-800">{{ $question->order }}. {!! $question->question !!}</p>
                                                         <span class="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">Bobot: {{ $question->grade }}</span>
                                                         <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">{{ ucfirst($question->type) }}</span>
                                                     </div>
@@ -157,6 +157,9 @@
                                                                     @else
                                                                         <span class="text-gray-600">○ {{ $option->option }}</span>
                                                                     @endif
+                                                                    @if($option->image)
+                                                                        <img src="{{ asset('storage/'.$option->image) }}" style="width:40px;height:40px;object-fit:contain;background:#f8fafc;" class="border rounded ml-2" />
+                                                                    @endif
                                                                 </div>
                                                             @endforeach
                                                         </div>
@@ -170,7 +173,10 @@
                                                 </div>
 
                                                 <div class="flex space-x-2">
-                                                    <button onclick='editQuestion(@json($question->load("options", "answerKey")), {{ $category->id }}, "{{ $category->name }}")' class="text-blue-600 hover:text-blue-800 text-sm">
+                                                    <button type="button" class="edit-question-btn text-blue-600 hover:text-blue-800 text-sm"
+                                                        data-question='{!! json_encode($question->load("options", "answerKey"), JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) !!}'
+                                                        data-category-id="{{ $category->id }}"
+                                                        data-category-name="{{ $category->name }}">
                                                         Edit
                                                     </button>
                                                     <form action="{{ route('admin.questions.destroy', $question->id) }}" method="POST" class="inline">
@@ -323,10 +329,12 @@
                         <div class="flex items-center space-x-2">
                             <input type="radio" name="correct_answer" value="0" checked>
                             <input type="text" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Opsi 1">
+                            <input type="file" name="option_images[]" accept="image/*" class="ml-2">
                         </div>
                         <div class="flex items-center space-x-2">
                             <input type="radio" name="correct_answer" value="1">
                             <input type="text" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Opsi 2">
+                            <input type="file" name="option_images[]" accept="image/*" class="ml-2">
                         </div>
                     </div>
                     <button type="button" onclick="addOption()" class="text-blue-600 hover:text-blue-800 text-sm">+ Tambah Opsi</button>
@@ -351,6 +359,7 @@
         </div>
     </div>
 
+    <script src="/vendor/tinymce/tinymce.min.js"></script>
     <script>
         // Category Modal Functions
         function openAddCategoryModal() {
@@ -383,6 +392,10 @@
             document.getElementById('question_order').value = '';
             document.getElementById('question_grade').value = '10';
             document.getElementById('question_text').value = '';
+            // If TinyMCE is initialized, reset its content too
+            if (tinymce.get('question_text')) {
+                tinymce.get('question_text').setContent('');
+            }
             document.getElementById('question_type').value = 'options';
             // Clear image fields
             document.getElementById('question_image').value = '';
@@ -396,10 +409,12 @@
                 <div class="flex items-center space-x-2">
                     <input type="radio" name="correct_answer" value="0" checked>
                     <input type="text" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Opsi 1">
+                    <input type="file" name="option_images[]" accept="image/*" class="ml-2">
                 </div>
                 <div class="flex items-center space-x-2">
                     <input type="radio" name="correct_answer" value="1">
                     <input type="text" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Opsi 2">
+                    <input type="file" name="option_images[]" accept="image/*" class="ml-2">
                 </div>
             `;
             
@@ -417,6 +432,11 @@
             document.getElementById('question_order').value = question.order;
             document.getElementById('question_grade').value = question.grade;
             document.getElementById('question_text').value = question.question;
+            // If TinyMCE is initialized, set its content when editing
+            if (tinymce.get('question_text')) {
+                // question.question may contain HTML, set as-is
+                tinymce.get('question_text').setContent(question.question || '');
+            }
             document.getElementById('question_type').value = question.type;
             
             // Handle existing image
@@ -436,10 +456,16 @@
                     // Check both answer_key and answerKey for compatibility
                     const answerKey = question.answer_key || question.answerKey;
                     const isCorrect = answerKey && answerKey.question_option_id == option.id;
+                    let imagePreview = '';
+                    if (option.image) {
+                        imagePreview = `<img src="/storage/${option.image}" style="width:40px;height:40px;object-fit:contain;background:#f8fafc;" class="border rounded ml-2" />`;
+                    }
                     optionsList.innerHTML += `
                         <div class="flex items-center space-x-2">
                             <input type="radio" name="correct_answer" value="${index}" ${isCorrect ? 'checked' : ''}>
                             <input type="text" value="${option.option}" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Opsi ${index + 1}">
+                            <input type="file" name="option_images[]" accept="image/*" class="ml-2">
+                            ${imagePreview}
                         </div>
                     `;
                 });
@@ -499,6 +525,7 @@
             newOption.innerHTML = `
                 <input type="radio" name="correct_answer" value="${optionCount}">
                 <input type="text" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Opsi ${optionCount + 1}">
+                <input type="file" name="option_images[]" accept="image/*" class="ml-2">
                 <button type="button" onclick="removeOption(this)" class="text-red-600 hover:text-red-800">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -553,6 +580,79 @@
                 closeQuestionModal();
             }
         }
+
+        // Attach click listeners for dynamically created Edit buttons to safely parse JSON
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest && e.target.closest('.edit-question-btn');
+            if (!btn) return;
+            e.preventDefault();
+            try {
+                const qJson = btn.getAttribute('data-question');
+                const question = qJson ? JSON.parse(qJson) : null;
+                const categoryId = btn.getAttribute('data-category-id');
+                const categoryName = btn.getAttribute('data-category-name');
+                if (question) {
+                    editQuestion(question, Number(categoryId), categoryName);
+                } else {
+                    console.warn('No question data found on button');
+                }
+            } catch (err) {
+                console.error('Failed to parse question JSON', err, btn.getAttribute('data-question'));
+            }
+        });
+
+        // Initialize TinyMCE for the question textarea
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof tinymce !== 'undefined') {
+                    // Read API key and license key from environment (Blade)
+                    const tinyApiKey = @json(env('TINYMCE_API_KEY', ''));
+                    const tinyLicenseKey = @json(env('TINYMCE_LICENSE_KEY', ''));
+
+                    const initConfig = {
+                        selector: '#question_text',
+                        height: 220,
+                        menubar: false,
+                        branding: false,
+                        // 'paste' plugin removed because it's not present in the copied vendor files;
+                        // add it back if you copy the plugin to public/vendor/tinymce/plugins/paste
+                        plugins: ['lists', 'link', 'image', 'code', 'table'],
+                        toolbar: 'undo redo | styleselect | bold italic underline | alignleft aligncenter alignright | bullist numlist | link image | code',
+                        relative_urls: false,
+                        remove_script_host: false,
+                        convert_urls: true,
+                        setup: function(editor) {
+                            editor.on('init', function() {
+                                // nothing for now
+                            });
+                        }
+                    };
+
+                    // If an API key is provided, set it (useful for cloud builds)
+                    if (tinyApiKey && tinyApiKey.length > 0) {
+                        initConfig['apiKey'] = tinyApiKey;
+                    }
+
+                    // If license key provided, include it via init; otherwise default to 'gpl' to
+                    // agree to TinyMCE open source license terms (see https://www.tiny.cloud/docs/tinymce/latest/license-key/)
+                    initConfig['license_key'] = tinyLicenseKey && tinyLicenseKey.length > 0 ? tinyLicenseKey : 'gpl';
+
+                    tinymce.init(initConfig);
+                }
+
+            // Ensure editor content is saved into textarea before submitting
+            const qForm = document.getElementById('questionForm');
+            if (qForm) {
+                qForm.addEventListener('submit', function(e) {
+                    if (typeof tinymce !== 'undefined') {
+                        try {
+                            tinymce.triggerSave();
+                        } catch (err) {
+                            // ignore
+                        }
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>
