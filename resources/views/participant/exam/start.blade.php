@@ -41,6 +41,14 @@
                 </div>
             </div>
 
+            <!-- Floating countdown (always visible while scrolling) -->
+            <div id="floating-countdown" class="fixed top-4 right-4 z-50">
+                <div class="bg-white px-3 py-2 rounded shadow text-sm flex items-center space-x-2">
+                    <span class="hidden sm:inline text-gray-700">Waktu tersisa:</span>
+                    <span id="floatingCountdown" class="font-semibold text-gray-800">--:--:--</span>
+                </div>
+            </div>
+
             @foreach($period->categories->sortBy('order') as $category)
                 <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6">
                     <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-2">{{ $category->name }}</h3>
@@ -111,100 +119,159 @@
     <script>
     // Exam duration in minutes provided by server (null means unlimited)
     const durationMinutes = {{ json_encode($period->duration_minutes) }};
-    // Use a unique key per user, period, and userAnswer to persist remaining time across reloads
+    // Use a unique key per user, period, and userAnswer to persist end timestamp across reloads
     const userId = {{ Auth::id() }};
     const periodId = {{ $period->id }};
-    const storageKey = `exam_remaining_seconds_${userId}_${periodId}_{{ $userAnswer->id }}`;
-    const storedDurationKey = `exam_duration_minutes_${userId}_${periodId}_{{ $userAnswer->id }}`;
+    const uaId = {{ $userAnswer->id }};
+    const endTsKey = `exam_end_ts_${userId}_${periodId}_${uaId}`;
+    const storedDurationKey = `exam_duration_minutes_${userId}_${periodId}_${uaId}`;
+    const expiredFlagKey = `exam_expired_${userId}_${periodId}_${uaId}`;
+
     console.log('Exam durationMinutes from server:', durationMinutes);
-    let remaining = parseInt(localStorage.getItem(storageKey));
-    const storedDuration = parseInt(localStorage.getItem(storedDurationKey));
 
-        // If admin changed the duration (or no stored duration), update it
-        if (isNaN(storedDuration) || storedDuration !== Number(durationMinutes)) {
-            if (durationMinutes !== null && !isNaN(durationMinutes) && parseInt(durationMinutes) > 0) {
-                localStorage.setItem(storedDurationKey, parseInt(durationMinutes));
-                remaining = parseInt(durationMinutes) * 60;
-                localStorage.setItem(storageKey, remaining);
+    const countdownEl = document.getElementById('countdown');
+    const floatingCountdownEl = document.getElementById('floatingCountdown');
+    const form = document.getElementById('examForm');
+
+    // Helper: format seconds to HH:MM:SS
+    function formatTime(sec) {
+        const h = Math.floor(sec / 3600).toString().padStart(2, '0');
+        const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+        const s = Math.floor(sec % 60).toString().padStart(2, '0');
+        return `${h}:${m}:${s}`;
+    }
+
+    // Compute or initialize end timestamp
+    function getOrCreateEndTs() {
+        if (durationMinutes === null || isNaN(Number(durationMinutes)) || Number(durationMinutes) <= 0) {
+            return null; // unlimited
+        }
+
+        const storedDuration = parseInt(localStorage.getItem(storedDurationKey));
+        let endTs = parseInt(localStorage.getItem(endTsKey));
+
+        // If duration changed (admin updated), reset end timestamp to new duration
+        if (isNaN(storedDuration) || storedDuration !== Number(durationMinutes) || isNaN(endTs)) {
+            endTs = Date.now() + parseInt(durationMinutes) * 60 * 1000;
+            localStorage.setItem(endTsKey, endTs);
+            localStorage.setItem(storedDurationKey, parseInt(durationMinutes));
+        }
+
+        return endTs;
+    }
+
+    // Attempt to submit the form via fetch. If success, clear persistence keys.
+    function attemptSubmit() {
+        const submitForm = document.getElementById('examForm');
+        const formData = new FormData(submitForm);
+        const action = submitForm.action;
+
+        // disable visible/interactive inputs to prevent further changes (best-effort)
+        // but DO NOT disable hidden inputs (e.g. CSRF token) so the token remains in FormData
+        document.querySelectorAll('#examForm input:not([type="hidden"]):not([name="_token"]), #examForm button, #examForm textarea, #examForm select').forEach(el => el.disabled = true);
+
+        // mark expired so subsequent loads know an expiry happened
+        localStorage.setItem(expiredFlagKey, '1');
+
+        return fetch(action, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData,
+            credentials: 'same-origin'
+        }).then(resp => {
+            if (resp.ok) {
+                // clean up local keys on success
+                localStorage.removeItem(endTsKey);
+                localStorage.removeItem(storedDurationKey);
+                localStorage.removeItem(expiredFlagKey);
+                // remove saved answers keys as well
+                clearSavedAnswers();
+                // redirect to response URL if provided
+                window.location.href = resp.url || window.location.href;
+                return true;
+            } else if (resp.status === 419) {
+                // CSRF/session expired — redirect to dashboard (or login)
+                alert('Sesi Anda telah berakhir. Anda akan dikembalikan ke dashboard. Jawaban mungkin belum tersubmit.');
+                window.location.href = '{{ route("participant.exam.index") }}';
+                return false;
             } else {
-                document.getElementById('countdown').textContent = '--:--:--';
+                // fallback to normal submit
+                submitForm.submit();
+                return false;
             }
-        } else {
-            // storedDuration matches current duration; if remaining is missing or <=0, init it
-            if (isNaN(remaining) || remaining === null || remaining <= 0) {
-                if (durationMinutes !== null && !isNaN(durationMinutes) && parseInt(durationMinutes) > 0) {
-                    remaining = parseInt(durationMinutes) * 60;
-                    localStorage.setItem(storageKey, remaining);
-                } else {
-                    document.getElementById('countdown').textContent = '--:--:--';
-                }
-            }
-        }
+        }).catch(err => {
+            // network error -> keep endTs so next load will try again
+            console.error('Auto-submit failed:', err);
+            // fallback to normal submit (this will navigate away and likely fail), but we prefer to keep keys so reload will trigger retry
+            // submitForm.submit();
+            return false;
+        });
+    }
 
-        const countdownEl = document.getElementById('countdown');
+    // Clear saved answer keys
+    function clearSavedAnswers() {
+        const inputs = form.querySelectorAll('input[type="radio"], input[type="text"]');
+        inputs.forEach(input => {
+            const match = input.name.match(/answers\[(\d+)\]/);
+            const questionId = match ? match[1] : 'unknown';
+            const key = `answer_${userId}_${periodId}_${questionId}`;
+            localStorage.removeItem(key);
+        });
+    }
 
-        function formatTime(sec) {
-            const h = Math.floor(sec / 3600).toString().padStart(2, '0');
-            const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
-            const s = Math.floor(sec % 60).toString().padStart(2, '0');
-            return `${h}:${m}:${s}`;
-        }
+    // Start/restore timer
+    let timerInterval = null;
+    (function initTimer() {
+        const endTs = getOrCreateEndTs();
 
-        function tick() {
-            if (remaining <= 0) {
-                countdownEl.textContent = '00:00:00';
-                // Auto-submit if time's up
-                localStorage.removeItem(storageKey);
-                // submit form via fetch with FormData to ensure CSRF token is included and to handle errors
-                const submitForm = document.getElementById('examForm');
-                const formData = new FormData(submitForm);
-                const action = submitForm.action;
-
-                // disable visible/interactive inputs to prevent further changes (best-effort)
-                // but DO NOT disable hidden inputs (e.g. CSRF token) so the token remains in FormData
-                document.querySelectorAll('#examForm input:not([type="hidden"]):not([name="_token"]), #examForm button, #examForm textarea, #examForm select').forEach(el => el.disabled = true);
-
-                fetch(action, {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: formData,
-                    credentials: 'same-origin'
-                }).then(resp => {
-                    if (resp.ok) {
-                        // on success redirect to results or reload
-                        window.location.href = resp.url || window.location.href;
-                    } else if (resp.status === 419) {
-                        // CSRF/session expired — redirect to dashboard (or login)
-                        alert('Sesi Anda telah berakhir. Anda akan dikembalikan ke dashboard. Jawaban mungkin belum tersubmit.');
-                        window.location.href = '{{ route("participant.exam.index") }}';
-                    } else {
-                        // fallback to normal submit
-                        submitForm.submit();
-                    }
-                }).catch(err => {
-                    // network error -> fallback
-                    submitForm.submit();
-                });
+        if (!endTs) {
+                if (countdownEl) countdownEl.textContent = '--:--:--';
+                if (floatingCountdownEl) floatingCountdownEl.textContent = '--:--:--';
                 return;
             }
 
-            countdownEl.textContent = formatTime(remaining);
-            remaining -= 1;
-            localStorage.setItem(storageKey, remaining);
+        function update() {
+            const remaining = Math.floor((parseInt(localStorage.getItem(endTsKey)) - Date.now()) / 1000);
+            if (remaining <= 0) {
+                if (countdownEl) countdownEl.textContent = '00:00:00';
+                if (floatingCountdownEl) floatingCountdownEl.textContent = '00:00:00';
+                // mark expired (persist) and try to submit; but don't remove endTs here so retries can occur
+                localStorage.setItem(expiredFlagKey, '1');
+                // attempt submit once; if it fails, leaving endTs allows retry on next load
+                attemptSubmit();
+                clearInterval(timerInterval);
+                return;
+            }
+
+            const text = formatTime(remaining);
+            if (countdownEl) countdownEl.textContent = text;
+            if (floatingCountdownEl) floatingCountdownEl.textContent = text;
         }
 
-        // Start countdown immediately and then every second
-        tick();
-        const timerInterval = setInterval(tick, 1000);
+        // If the exam already expired while the user was away, immediately attempt submit
+        const alreadyRemaining = Math.floor((endTs - Date.now()) / 1000);
+        if (alreadyRemaining <= 0) {
+            if (countdownEl) countdownEl.textContent = '00:00:00';
+            if (floatingCountdownEl) floatingCountdownEl.textContent = '00:00:00';
+            localStorage.setItem(expiredFlagKey, '1');
+            attemptSubmit();
+            return;
+        }
 
-        // Clear storage on manual submit
-        const form = document.getElementById('examForm');
-        form.addEventListener('submit', function() {
-            localStorage.removeItem(storageKey);
-            clearInterval(timerInterval);
-        });
+        update();
+        timerInterval = setInterval(update, 1000);
+    })();
+
+    // When the user manually submits, clear persisted timer and saved answers
+    form.addEventListener('submit', function() {
+        localStorage.removeItem(endTsKey);
+        localStorage.removeItem(storedDurationKey);
+        localStorage.removeItem(expiredFlagKey);
+        if (timerInterval) clearInterval(timerInterval);
+        clearSavedAnswers();
+    });
 
     // Auto save to localStorage (optional)
     const inputs = form.querySelectorAll('input[type="radio"], input[type="text"]');
@@ -234,14 +301,6 @@
         input.addEventListener('change', function() {
             const key = getAnswerKey(this);
             localStorage.setItem(key, this.value);
-        });
-    });
-
-    // Clear localStorage on submit
-    form.addEventListener('submit', function() {
-        inputs.forEach(input => {
-            const key = getAnswerKey(input);
-            localStorage.removeItem(key);
         });
     });
     </script>
