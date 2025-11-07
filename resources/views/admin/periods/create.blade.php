@@ -56,6 +56,22 @@
                 </div>
 
                 <div class="mb-4">
+                    <label class="flex items-center space-x-2">
+                        <input type="hidden" name="is_random_questions" value="0">
+                        <input type="checkbox" name="is_random_questions" value="1" class="form-checkbox text-blue-600" {{ old('is_random_questions') ? 'checked' : '' }}>
+                        <span class="text-gray-700 text-sm sm:text-base">Acak Soal (Acak Pertanyaan untuk Peserta)</span>
+                    </label>
+                </div>
+
+                <div class="mb-6">
+                    <label class="flex items-center space-x-2">
+                        <input type="hidden" name="is_random_options" value="0">
+                        <input type="checkbox" name="is_random_options" value="1" class="form-checkbox text-blue-600" {{ old('is_random_options') ? 'checked' : '' }}>
+                        <span class="text-gray-700 text-sm sm:text-base">Acak Opsi (Acak Urutan Pilihan Jawaban)</span>
+                    </label>
+                </div>
+
+                <div class="mb-4">
                     <label class="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">Durasi (menit) <span class="text-xs text-gray-500">(kosong = tidak terbatas)</span></label>
                     <input type="number" name="duration_minutes" value="{{ old('duration_minutes') }}" min="1" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
                 </div>

@@ -24,11 +24,13 @@ class PeriodController extends Controller
         $request->validate([
             'name' => 'required|string',
             'status' => 'required|boolean',
+            'is_random_questions' => 'nullable|boolean',
+            'is_random_options' => 'nullable|boolean',
             'duration_minutes' => 'nullable|integer|min:1',
             'exam_password' => 'nullable|string',
         ]);
 
-        $data = $request->only(['name','status','show_grade','show_result','duration_minutes']);
+        $data = $request->only(['name','status','show_grade','show_result','duration_minutes','is_random_questions','is_random_options']);
         if ($request->filled('exam_password')) {
             $data['exam_password'] = $request->input('exam_password');
         }
@@ -57,11 +59,13 @@ class PeriodController extends Controller
         $request->validate([
             'name' => 'required|string',
             'status' => 'required|boolean',
+            'is_random_questions' => 'nullable|boolean',
+            'is_random_options' => 'nullable|boolean',
             'duration_minutes' => 'nullable|integer|min:1',
             'exam_password' => 'nullable|string',
         ]);
 
-        $data = $request->only(['name','status','show_grade','show_result','duration_minutes']);
+        $data = $request->only(['name','status','show_grade','show_result','duration_minutes','is_random_questions','is_random_options']);
         if ($request->filled('exam_password')) {
             $data['exam_password'] = $request->input('exam_password');
         }

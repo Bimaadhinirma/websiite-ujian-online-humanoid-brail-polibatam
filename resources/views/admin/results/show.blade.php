@@ -81,6 +81,7 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Participant</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nilai Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu Pengerjaan</th>
                                 @foreach($results[0]['by_category'] as $cat)
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ $cat['category_name'] }}</th>
                                 @endforeach
@@ -107,6 +108,13 @@
                                         <div class="text-xs text-gray-500">
                                             {{ number_format($result['overall']['percentage'], 1) }}%
                                         </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        @if(isset($result['elapsed_seconds']) && $result['elapsed_seconds'] !== null && intval($result['elapsed_seconds']) >= 0)
+                                            {{ gmdate('H:i:s', intval($result['elapsed_seconds'])) }}
+                                        @else
+                                            -
+                                        @endif
                                     </td>
                                     @foreach($result['by_category'] as $category)
                                         <td class="px-6 py-4 whitespace-nowrap">

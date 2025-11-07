@@ -35,7 +35,9 @@ class ResultController extends Controller
                 'user_answer_id' => $userAnswer->id,
                 'overall' => $detailedResult['overall'],
                 'by_category' => $detailedResult['by_category'],
-                'status' => $userAnswer->status
+                'status' => $userAnswer->status,
+                'elapsed_seconds' => $userAnswer->elapsed_seconds,
+                'ended_at' => $userAnswer->ended_at,
             ];
         }
 
@@ -92,21 +94,27 @@ class ResultController extends Controller
         // Sheet 1: Total scores
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Total Scores');
-        $sheet->fromArray(['Participant', 'Username', 'Total Earned', 'Total Possible', 'Percentage'], null, 'A1');
+        // Add elapsed seconds and human-readable elapsed columns
+        $sheet->fromArray(['Participant', 'Username', 'Elapsed Seconds', 'Elapsed (H:i:s)', 'Total Earned', 'Total Possible', 'Percentage'], null, 'A1');
 
-    $row = 2;
+        $row = 2;
         foreach ($userAnswers as $ua) {
             $d = $ua->getDetailedResult();
+            $elapsed = $ua->elapsed_seconds;
+            $elapsedHuman = ($elapsed !== null && intval($elapsed) >= 0) ? gmdate('H:i:s', intval($elapsed)) : '';
+
             $sheet->setCellValue("A{$row}", $ua->user->nama);
             $sheet->setCellValue("B{$row}", $ua->user->username);
-            $sheet->setCellValue("C{$row}", $d['overall']['earned']);
-            $sheet->setCellValue("D{$row}", $d['overall']['total']);
-            $sheet->setCellValue("E{$row}", round($d['overall']['percentage'], 2));
+            $sheet->setCellValue("C{$row}", $elapsed !== null ? intval($elapsed) : '');
+            $sheet->setCellValue("D{$row}", $elapsedHuman);
+            $sheet->setCellValue("E{$row}", $d['overall']['earned']);
+            $sheet->setCellValue("F{$row}", $d['overall']['total']);
+            $sheet->setCellValue("G{$row}", round($d['overall']['percentage'], 2));
             $row++;
         }
 
-        // Auto-size columns for the total sheet (A..E)
-        foreach (range('A', 'E') as $col) {
+        // Auto-size columns for the total sheet (A..G)
+        foreach (range('A', 'G') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -115,7 +123,8 @@ class ResultController extends Controller
             $sheetIndex = $index + 1; // since 0 is active sheet
             $newSheet = $spreadsheet->createSheet($sheetIndex);
             $newSheet->setTitle(substr($category->name, 0, 30)); // sheet title max length
-            $newSheet->fromArray(['Participant', 'Username', 'Earned', 'Total', 'Percentage'], null, 'A1');
+            // include elapsed columns for reference
+            $newSheet->fromArray(['Participant', 'Username', 'Elapsed Seconds', 'Elapsed (H:i:s)', 'Earned', 'Total', 'Percentage'], null, 'A1');
 
             $r = 2;
             foreach ($userAnswers as $ua) {
@@ -130,16 +139,21 @@ class ResultController extends Controller
                     $percent = round($catGrade['percentage'], 2);
                 }
 
+                $elapsed = $ua->elapsed_seconds;
+                $elapsedHuman = ($elapsed !== null && intval($elapsed) >= 0) ? gmdate('H:i:s', intval($elapsed)) : '';
+
                 $newSheet->setCellValue("A{$r}", $ua->user->nama);
                 $newSheet->setCellValue("B{$r}", $ua->user->username);
-                $newSheet->setCellValue("C{$r}", $earned);
-                $newSheet->setCellValue("D{$r}", $total);
-                $newSheet->setCellValue("E{$r}", $percent);
+                $newSheet->setCellValue("C{$r}", $elapsed !== null ? intval($elapsed) : '');
+                $newSheet->setCellValue("D{$r}", $elapsedHuman);
+                $newSheet->setCellValue("E{$r}", $earned);
+                $newSheet->setCellValue("F{$r}", $total);
+                $newSheet->setCellValue("G{$r}", $percent);
                 $r++;
             }
 
-            // Auto-size columns for this category sheet (A..E)
-            foreach (range('A', 'E') as $col) {
+            // Auto-size columns for this category sheet (A..G)
+            foreach (range('A', 'G') as $col) {
                 $newSheet->getColumnDimension($col)->setAutoSize(true);
             }
         }

@@ -48,7 +48,22 @@
             <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">Hasil Ujian: {{ $period->name }}</h2>
             <p class="text-sm sm:text-base text-gray-600">Status: <span class="font-semibold">{{ $userAnswer->status ? 'Selesai' : 'Belum Selesai' }}</span></p>
         </div>
-
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-6 flex flex-col sm:flex-row items-center gap-4">
+            <div class="flex-shrink-0">
+                <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                </div>
+            </div>
+            <div class="flex-1">
+                <h3 class="text-lg font-bold text-gray-800">Anda telah menyelesaikan ujian!</h3>
+                <p class="text-sm text-gray-600 mt-1">Terima kasih telah menyelesaikan Ujian <span class="font-semibold">{{ $period->name }}</span>.</p>
+            </div>
+            <div>
+                <a href="{{ route('participant.exam.index') }}" class="inline-block bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm">Kembali ke Daftar Ujian</a>
+            </div>
+            </div>
         @if($period->show_grade)
             <!-- Nilai Keseluruhan -->
             <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg p-4 sm:p-6 mb-6 text-white">
@@ -110,10 +125,6 @@
                 </div>
             </div>
         @else
-            <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-                <p class="font-semibold">Nilai belum dapat ditampilkan.</p>
-                <p class="text-sm mt-1">Admin belum mengaktifkan fitur tampilan nilai untuk periode ini.</p>
-            </div>
         @endif
 
         @if($period->show_result)
@@ -133,7 +144,7 @@
                             @endphp
 
                             <div class="mb-4 p-4 border rounded-lg {{ $isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300' }}">
-                                <p class="font-semibold text-gray-800 mb-2">{{ $index + 1 }}. {{ $question->question }}</p>
+                                <p class="font-semibold text-gray-800 mb-2">{{ $index + 1 }}. {!! $question->question !!}</p>
                                 @if(!empty($question->image))
                                     <div class="mb-3">
                                         <img src="{{ asset('storage/' . $question->image) }}" alt="Gambar soal {{ $index + 1 }}" class="max-w-full max-h-64 object-contain rounded border" />
@@ -165,11 +176,9 @@
                 @endforeach
             </div>
         @else
-            <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mt-6">
-                <p class="font-semibold">Detail jawaban belum dapat ditampilkan.</p>
-                <p class="text-sm mt-1">Admin belum mengaktifkan fitur review hasil untuk periode ini.</p>
-            </div>
         @endif
+        
+
     </div>
 </body>
 </html>

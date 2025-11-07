@@ -97,5 +97,6 @@ Route::middleware(['auth', 'role:participant'])->prefix('participant')->group(fu
     Route::get('/exam/start/{period}', [ExamController::class, 'start'])->name('participant.exam.start');
     Route::post('/exam/verify-password/{period}', [ExamController::class, 'verifyPassword'])->name('participant.exam.verify-password');
     Route::post('/exam/submit/{userAnswer}', [ExamController::class, 'submit'])->name('participant.exam.submit');
+    Route::post('/exam/heartbeat/{userAnswer}', [ExamController::class, 'heartbeat'])->name('participant.exam.heartbeat');
     Route::get('/exam/result/{userAnswer}', [ExamController::class, 'result'])->name('participant.exam.result');
 });

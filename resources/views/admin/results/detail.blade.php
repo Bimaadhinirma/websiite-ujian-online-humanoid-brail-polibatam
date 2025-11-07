@@ -89,7 +89,7 @@
                                     <div class="flex items-start gap-2 mb-2">
                                         <span class="font-semibold text-gray-700">{{ $index + 1 }}.</span>
                                         <div class="flex-1">
-                                            <p class="text-gray-800 mb-2">{{ $question->question }}</p>
+                                            <p class="text-gray-800 mb-2">{!! $question->question !!}</p>
                                             @if(!empty($question->image))
                                                 <div class="mb-3">
                                                     <img src="{{ asset('storage/' . $question->image) }}" alt="Gambar soal {{ $index + 1 }}" class="max-w-full max-h-64 object-contain rounded border" />

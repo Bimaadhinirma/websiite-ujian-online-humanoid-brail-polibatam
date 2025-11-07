@@ -16,12 +16,16 @@ class Period extends Model
         'show_grade',
         'duration_minutes',
         'exam_password',
+        'is_random_questions',
+        'is_random_options',
     ];
 
     protected $casts = [
         'status' => 'boolean',
         'show_result' => 'boolean',
         'show_grade' => 'boolean',
+        'is_random_questions' => 'boolean',
+        'is_random_options' => 'boolean',
     ];
 
     /**

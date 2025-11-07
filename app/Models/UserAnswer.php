@@ -13,10 +13,20 @@ class UserAnswer extends Model
         'user_id',
         'period_id',
         'status',
+        'elapsed_seconds',
+        'ended_at',
+        'category_order',
+        'question_order',
+        'options_order',
     ];
 
     protected $casts = [
         'status' => 'boolean',
+        'ended_at' => 'datetime',
+        'elapsed_seconds' => 'integer',
+        'category_order' => 'array',
+        'question_order' => 'array',
+        'options_order' => 'array',
     ];
 
     /**

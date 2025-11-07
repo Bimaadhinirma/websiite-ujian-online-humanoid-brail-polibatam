@@ -5,6 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $period->name }}</title>
     <script src="/js/tailwind.js"></script>
+    <style>
+        /* Ensure TinyMCE content is responsive and long words wrap */
+        .tinymce-content { 
+            word-break: break-word;
+            overflow-wrap: break-word;
+            -webkit-font-smoothing: antialiased;
+            white-space: normal;
+            max-width: 100%;
+        }
+        .tinymce-content img, .question-image, .option-image {
+            max-width: 100% !important;
+            height: auto !important;
+            object-fit: contain !important;
+            display: block;
+        }
+        /* Ensure tables and other wide elements inside TinyMCE are scrollable / responsive */
+        .tinymce-content table {
+            display: block;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: auto;
+            table-layout: fixed;
+            border-collapse: collapse;
+        }
+        .tinymce-content th, .tinymce-content td {
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        /* Prevent horizontal overflow from labels with large images */
+        .option-label { 
+            word-break: break-word;
+            width: 100%;
+            flex-wrap: wrap;
+        }
+        .option-label .flex-1 { min-width: 0; }
+        .question-card { overflow: hidden; }
+        .question-image { max-width:100% !important; max-height:40vh !important; height:auto !important; display:block; margin:0 auto; }
+        .option-image { max-width:100% !important; max-height:30vh !important; height:auto !important; display:block; }
+    </style>
 </head>
 <body class="bg-gray-100">
     <nav class="bg-white shadow-lg">
@@ -34,6 +73,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <form method="POST" action="{{ route('participant.exam.submit', $userAnswer->id) }}" id="examForm">
             @csrf
+            <input type="hidden" name="elapsed_seconds" id="elapsed_seconds" value="">
 
             <div class="flex justify-end mb-4">
                 <div class="bg-white px-4 py-2 rounded shadow text-sm">
@@ -49,7 +89,24 @@
                 </div>
             </div>
 
-            @foreach($period->categories->sortBy('order') as $category)
+            <!-- Offline banner shown when client cannot reach server -->
+            <div id="offline-banner" class="hidden fixed top-16 right-4 z-50">
+                <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 px-4 py-2 rounded shadow text-sm">
+                    <strong>Terputus:</strong> Koneksi ke server ujian terputus. Anda tidak dapat mengubah jawaban sampai koneksi pulih.
+                </div>
+            </div>
+
+            @php
+                // Build ordered categories: prefer persisted order from userAnswer, fallback to period settings
+                $allCategories = $period->categories->keyBy('id');
+                if (!empty($userAnswer) && !empty($userAnswer->category_order)) {
+                    $orderedCategories = collect($userAnswer->category_order)->map(function($id) use ($allCategories) { return $allCategories->get($id); })->filter();
+                } else {
+                    $orderedCategories = $period->is_random_questions ? $period->categories->shuffle() : $period->categories->sortBy('order');
+                }
+            @endphp
+
+            @foreach($orderedCategories as $category)
                 <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6">
                     <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-2">{{ $category->name }}</h3>
                     @if($category->descriptions)
@@ -57,32 +114,54 @@
                     @endif
 
                     <div class="space-y-6">
-                        @foreach($category->questions->sortBy('order') as $index => $question)
-                            <div class="border-b border-gray-200 pb-4">
+                        @php
+                            $allQuestions = $category->questions->keyBy('id');
+                            if (!empty($userAnswer) && !empty($userAnswer->question_order) && array_key_exists($category->id, $userAnswer->question_order)) {
+                                $orderedQuestions = collect($userAnswer->question_order[$category->id])->map(function($id) use ($allQuestions) { return $allQuestions->get($id); })->filter();
+                            } else {
+                                $orderedQuestions = $period->is_random_questions ? $category->questions->shuffle() : $category->questions->sortBy('order');
+                            }
+                        @endphp
+
+                        @foreach($orderedQuestions as $question)
+                            <div class="border-b border-gray-200 pb-4 question-card">
                                 @if($question->image)
-                                    <div class="mt-3">
-                                        <img src="{{ asset('storage/'.$question->image) }}" alt="Soal Gambar" style="max-width:100%;max-height:500px;object-fit:contain;background:#f8fafc;" class="border rounded">
+                                    <div class="mt-3 overflow-auto">
+                                        <img src="{{ asset('storage/'.$question->image) }}" alt="Soal Gambar" class="question-image border rounded" />
                                         <p class="text-xs text-gray-500 mt-1">Gambar soal</p>
                                     </div>
                                 @endif
-                                <p class="font-semibold text-gray-800 mb-3 text-sm sm:text-base">
-                                    {{ $index + 1 }}. {!! $question->question !!}
+                                <p class="font-semibold text-gray-800 mb-1 text-sm sm:text-base">
+                                    {{ $loop->iteration }}.
                                     <span class="text-xs sm:text-sm text-blue-600">(Bobot: {{ $question->grade }})</span>
                                 </p>
+                                <div class="tinymce-content text-sm sm:text-base mb-3">{!! $question->question !!}</div>
 
                                 @if($question->type === 'options')
-                                    <div class="space-y-2">
-                                        @foreach($question->options->sortBy('order') as $option)
-                                            <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
-                                                <input type="radio" 
-                                                    name="answers[{{ $question->id }}]" 
-                                                    value="{{ $option->id }}" 
-                                                    class="form-radio text-blue-600"
-                                                    required>
-                                                <span class="text-gray-700">{{ $option->option }}</span>
-                                                @if($option->image)
-                                                    <img src="{{ asset('storage/'.$option->image) }}" alt="Opsi Gambar" style="width:400px;height:400px;object-fit:contain;background:#f8fafc;" class="border rounded ml-2" />
-                                                @endif
+                                    <div class="space-y-3">
+                                        @php
+                                            if (!empty($userAnswer) && !empty($userAnswer->options_order) && array_key_exists($question->id, $userAnswer->options_order)) {
+                                                $orderedOptions = collect($userAnswer->options_order[$question->id])->map(function($id) use ($question) { return $question->options->firstWhere('id', $id); })->filter();
+                                            } else {
+                                                $orderedOptions = $period->is_random_options ? $question->options->shuffle() : $question->options->sortBy('order');
+                                            }
+                                        @endphp
+
+                                        @foreach($orderedOptions as $option)
+                                            <label class="option-label flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                                                <div class="flex items-center space-x-2">
+                                                    <input type="radio" 
+                                                        name="answers[{{ $question->id }}]" 
+                                                        value="{{ $option->id }}" 
+                                                        class="form-radio text-blue-600"
+                                                        required>
+                                                </div>
+                                                <div class="flex-1">
+                                                    <div class="text-gray-700">{{ $option->option }}</div>
+                                                    @if($option->image)
+                                                        <img src="{{ asset('storage/'.$option->image) }}" alt="Opsi Gambar" class="option-image border rounded mt-2 sm:mt-1" />
+                                                    @endif
+                                                </div>
                                             </label>
                                         @endforeach
                                     </div>
@@ -126,6 +205,7 @@
     const endTsKey = `exam_end_ts_${userId}_${periodId}_${uaId}`;
     const storedDurationKey = `exam_duration_minutes_${userId}_${periodId}_${uaId}`;
     const expiredFlagKey = `exam_expired_${userId}_${periodId}_${uaId}`;
+    const scrollKey = `exam_scroll_${userId}_${periodId}_${uaId}`;
 
     console.log('Exam durationMinutes from server:', durationMinutes);
 
@@ -140,6 +220,41 @@
         const s = Math.floor(sec % 60).toString().padStart(2, '0');
         return `${h}:${m}:${s}`;
     }
+
+    // Save & restore scroll position across reloads so user doesn't jump to top
+    function saveScrollPos() {
+        try {
+            const y = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+            localStorage.setItem(scrollKey, String(Math.floor(y)));
+        } catch (e) {
+            // ignore
+        }
+    }
+
+    function restoreScrollPos() {
+        try {
+            const v = localStorage.getItem(scrollKey);
+            if (v !== null) {
+                const pos = parseInt(v, 10);
+                if (!isNaN(pos)) {
+                    // wait a tick for layout, then scroll
+                    requestAnimationFrame(function() {
+                        window.scrollTo(0, pos);
+                    });
+                }
+                // remove after restoring
+                localStorage.removeItem(scrollKey);
+            }
+        } catch (e) {
+            // ignore
+        }
+    }
+
+    // Restore on initial load
+    restoreScrollPos();
+
+    // Persist before unload (covers manual reloads / navigation)
+    window.addEventListener('beforeunload', saveScrollPos);
 
     // Compute or initialize end timestamp
     function getOrCreateEndTs() {
@@ -163,6 +278,23 @@
     // Attempt to submit the form via fetch. If success, clear persistence keys.
     function attemptSubmit() {
         const submitForm = document.getElementById('examForm');
+        // ensure elapsed_seconds hidden input is set so server can persist real time spent
+        try {
+            const elapsedInput = document.getElementById('elapsed_seconds');
+            if (elapsedInput) {
+                const endTs = parseInt(localStorage.getItem(endTsKey));
+                const storedDuration = parseInt(localStorage.getItem(storedDurationKey));
+                let elapsed = '';
+                if (!isNaN(endTs) && !isNaN(storedDuration)) {
+                    const startTs = endTs - (storedDuration * 60 * 1000);
+                    elapsed = Math.max(0, Math.floor((Date.now() - startTs) / 1000));
+                }
+                elapsedInput.value = elapsed;
+            }
+        } catch (e) {
+            // ignore
+        }
+
         const formData = new FormData(submitForm);
         const action = submitForm.action;
 
@@ -266,6 +398,23 @@
 
     // When the user manually submits, clear persisted timer and saved answers
     form.addEventListener('submit', function() {
+        // set elapsed_seconds before clearing keys
+        try {
+            const elapsedInput = document.getElementById('elapsed_seconds');
+            if (elapsedInput) {
+                const endTs = parseInt(localStorage.getItem(endTsKey));
+                const storedDuration = parseInt(localStorage.getItem(storedDurationKey));
+                let elapsed = '';
+                if (!isNaN(endTs) && !isNaN(storedDuration)) {
+                    const startTs = endTs - (storedDuration * 60 * 1000);
+                    elapsed = Math.max(0, Math.floor((Date.now() - startTs) / 1000));
+                }
+                elapsedInput.value = elapsed;
+            }
+        } catch (e) {
+            // ignore
+        }
+
         localStorage.removeItem(endTsKey);
         localStorage.removeItem(storedDurationKey);
         localStorage.removeItem(expiredFlagKey);
@@ -303,6 +452,128 @@
             localStorage.setItem(key, this.value);
         });
     });
+
+    // --- Heartbeat: inform server of connectivity and detect IP change ---
+    const heartbeatUrl = '{{ route("participant.exam.heartbeat", $userAnswer->id) }}';
+    let hbInterval = null;
+    let missedHeartbeats = 0;
+    const maxMissed = 3; // after 3 consecutive failures, consider offline
+    const offlineBanner = document.getElementById('offline-banner');
+    let isOffline = false;
+    let successSinceReload = 0;
+    const reloadEvery = 2; // number of successful heartbeats before forcing a reload (6 * 10s = 60s)
+
+    function setOffline(state) {
+        if (state) {
+            if (offlineBanner) offlineBanner.classList.remove('hidden');
+            // disable interactive inputs to prevent further changes while offline
+            document.querySelectorAll('#examForm input:not([type="hidden"]):not([name="_token"]), #examForm button, #examForm textarea, #examForm select').forEach(el => el.disabled = true);
+        } else {
+            if (offlineBanner) offlineBanner.classList.add('hidden');
+            document.querySelectorAll('#examForm input:not([type="hidden"]):not([name="_token"]), #examForm button, #examForm textarea, #examForm select').forEach(el => el.disabled = false);
+        }
+    }
+
+    function doHeartbeat() {
+        // Use fetch with timeout and check response.ok to reliably detect server reachability
+        fetchWithTimeout(heartbeatUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+        }, 5000).then(r => {
+            if (!r.ok) throw new Error('non-2xx status ' + r.status);
+            return r.json();
+        }).then(json => {
+            // success: reset missed counter and ensure online UI
+            missedHeartbeats = 0;
+            // if we were offline, restore and reload to resynchronize with server
+            if (isOffline) {
+                // clear offline UI then reload to ensure server-side state is applied
+                setOffline(false);
+                isOffline = false;
+                // if server instructs submit, let that proceed first
+                if (json.submit) {
+                    attemptSubmit();
+                    return;
+                }
+                // otherwise reload page so any server-side changes or CSRF/session are refreshed
+                saveScrollPos();
+                window.location.reload();
+                return;
+            }
+            if (json.submitted && json.redirect) {
+                // server already marked submitted
+                window.location.href = json.redirect;
+            } else if (json.submit) {
+                // server instructs to submit due to IP change/gap
+                attemptSubmit();
+            } else {
+                // periodic reload policy: reload after `reloadEvery` successful heartbeats
+                successSinceReload += 1;
+                if (successSinceReload >= reloadEvery) {
+                    successSinceReload = 0;
+                    // reload to re-sync with server (will also refresh CSRF/session if needed)
+                    saveScrollPos();
+                    window.location.reload();
+                    return;
+                }
+            }
+        }).catch(err => {
+            // can't reach server (offline or different network).
+            missedHeartbeats += 1;
+            console.warn('heartbeat failed', err, 'missed=', missedHeartbeats);
+            if (missedHeartbeats >= maxMissed) {
+                isOffline = true;
+                setOffline(true);
+            }
+            // We'll retry when next interval or when online/focus events fire
+        });
+    }
+
+    // Helper: fetch with timeout
+    function fetchWithTimeout(resource, options = {}, timeout = 5000) {
+        const controller = new AbortController();
+        const signal = controller.signal;
+        const fetchPromise = fetch(resource, Object.assign({}, options, { signal }));
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        return fetchPromise.finally(() => clearTimeout(timeoutId));
+    }
+
+    // start heartbeat every 10s
+    doHeartbeat(); // immediate
+    hbInterval = setInterval(doHeartbeat, 10000);
+
+    // attempt heartbeat when browser thinks it's online again
+    window.addEventListener('online', function() {
+            // reset missed counter and try immediately
+            missedHeartbeats = 0;
+            doHeartbeat();
+    });
+
+    // Also trigger heartbeat when page becomes visible (user switched back to tab)
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            // if we were offline, immediately try to reconnect
+            doHeartbeat();
+        }
+    });
+
+    // Network Information API: try to detect change in connection (if available)
+    if (navigator.connection && typeof navigator.connection.addEventListener === 'function') {
+        navigator.connection.addEventListener('change', function() {
+            // network parameters changed, try heartbeat
+            doHeartbeat();
+        });
+    } else if (navigator.connection && typeof navigator.connection.onchange !== 'undefined') {
+        navigator.connection.onchange = function() { doHeartbeat(); };
+    }
+
+    // Expose doHeartbeat for debugging
+    window.__exam_doHeartbeat = doHeartbeat;
     </script>
 </body>
 </html>
