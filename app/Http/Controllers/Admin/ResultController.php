@@ -41,6 +41,18 @@ class ResultController extends Controller
             ];
         }
 
+        // Sort results by overall percentage (highest first). If equal, sort by earned points.
+        usort($results, function ($a, $b) {
+            $pa = isset($a['overall']['percentage']) ? floatval($a['overall']['percentage']) : 0;
+            $pb = isset($b['overall']['percentage']) ? floatval($b['overall']['percentage']) : 0;
+            if ($pa === $pb) {
+                $ea = isset($a['overall']['earned']) ? floatval($a['overall']['earned']) : 0;
+                $eb = isset($b['overall']['earned']) ? floatval($b['overall']['earned']) : 0;
+                return $eb <=> $ea;
+            }
+            return $pb <=> $pa;
+        });
+
         return view('admin.results.show', compact('period', 'results'));
     }
 
@@ -97,9 +109,28 @@ class ResultController extends Controller
         // Add elapsed seconds and human-readable elapsed columns
         $sheet->fromArray(['Participant', 'Username', 'Elapsed Seconds', 'Elapsed (H:i:s)', 'Total Earned', 'Total Possible', 'Percentage'], null, 'A1');
 
-        $row = 2;
+        // Prepare rows and sort by overall percentage (highest first)
+        $rows = [];
         foreach ($userAnswers as $ua) {
             $d = $ua->getDetailedResult();
+            $rows[] = ['ua' => $ua, 'd' => $d];
+        }
+
+        usort($rows, function ($a, $b) {
+            $pa = isset($a['d']['overall']['percentage']) ? floatval($a['d']['overall']['percentage']) : 0;
+            $pb = isset($b['d']['overall']['percentage']) ? floatval($b['d']['overall']['percentage']) : 0;
+            if ($pa === $pb) {
+                $ea = isset($a['d']['overall']['earned']) ? floatval($a['d']['overall']['earned']) : 0;
+                $eb = isset($b['d']['overall']['earned']) ? floatval($b['d']['overall']['earned']) : 0;
+                return $eb <=> $ea;
+            }
+            return $pb <=> $pa;
+        });
+
+        $row = 2;
+        foreach ($rows as $r) {
+            $ua = $r['ua'];
+            $d = $r['d'];
             $elapsed = $ua->elapsed_seconds;
             $elapsedHuman = ($elapsed !== null && intval($elapsed) >= 0) ? gmdate('H:i:s', intval($elapsed)) : '';
 
@@ -127,8 +158,10 @@ class ResultController extends Controller
             $newSheet->fromArray(['Participant', 'Username', 'Elapsed Seconds', 'Elapsed (H:i:s)', 'Earned', 'Total', 'Percentage'], null, 'A1');
 
             $r = 2;
-            foreach ($userAnswers as $ua) {
-                $d = $ua->getDetailedResult();
+            // Use the same sorted $rows order so Excel matches the UI ordering
+            foreach ($rows as $rowData) {
+                $ua = $rowData['ua'];
+                $d = $rowData['d'];
                 // find this category grade in by_category
                 $catGrade = collect($d['by_category'])->firstWhere('category_id', $category->id);
                 if (!$catGrade) {
